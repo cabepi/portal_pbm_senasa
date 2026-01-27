@@ -1,0 +1,342 @@
+[
+  {
+    "code": "14021",
+    "name": "ACETAMINOFEN"
+  },
+  {
+    "code": "14451",
+    "name": "PARACETAMOL"
+  },
+  {
+    "code": "14550",
+    "name": "SULFATO FERROSO+ACIDO FOLICO+VITAMINA C"
+  },
+  {
+    "code": "14083",
+    "name": "AZATIOPRINA"
+  },
+  {
+    "code": "14098",
+    "name": "BLEOMICINA"
+  },
+  {
+    "code": "14107",
+    "name": "BUSULFAN"
+  },
+  {
+    "code": "14119",
+    "name": "CARBOPLATINO"
+  },
+  {
+    "code": "14129",
+    "name": "CICLOFOSFAMIDA"
+  },
+  {
+    "code": "14132",
+    "name": "CICLOSPORINA"
+  },
+  {
+    "code": "14136",
+    "name": "CIPROTERONA"
+  },
+  {
+    "code": "14138",
+    "name": "CISPLATINO"
+  },
+  {
+    "code": "14140",
+    "name": "CITARABINA"
+  },
+  {
+    "code": "14153",
+    "name": "CLORAMBUCILO"
+  },
+  {
+    "code": "14175",
+    "name": "DACARBACINA"
+  },
+  {
+    "code": "14176",
+    "name": "DACTINOMICINA"
+  },
+  {
+    "code": "14180",
+    "name": "DAUNORUBICINA"
+  },
+  {
+    "code": "14184",
+    "name": "DEXAMETASONA"
+  },
+  {
+    "code": "14207",
+    "name": "DOCETAXEL"
+  },
+  {
+    "code": "14210",
+    "name": "DOXORUBICINA"
+  },
+  {
+    "code": "14244",
+    "name": "ETOPOSIDO"
+  },
+  {
+    "code": "14245",
+    "name": "EVEROLIMUS"
+  },
+  {
+    "code": "14255",
+    "name": "FILGRASTIM"
+  },
+  {
+    "code": "14264",
+    "name": "FLUOROURACILO"
+  },
+  {
+    "code": "14267",
+    "name": "FLUTAMIDA"
+  },
+  {
+    "code": "14284",
+    "name": "GOSERELINA"
+  },
+  {
+    "code": "14285",
+    "name": "GRANISETRON"
+  },
+  {
+    "code": "14298",
+    "name": "HIDROXIUREA"
+  },
+  {
+    "code": "14306",
+    "name": "IFOSFAMIDA"
+  },
+  {
+    "code": "14307",
+    "name": "IMATINIB"
+  },
+  {
+    "code": "14347",
+    "name": "L ASPARAGINASA"
+  },
+  {
+    "code": "14356",
+    "name": "LEUCOVORIN"
+  },
+  {
+    "code": "14357",
+    "name": "LEUPRORELIN LEUPROLIDE"
+  },
+  {
+    "code": "14379",
+    "name": "MECLORETAMINA"
+  },
+  {
+    "code": "14382",
+    "name": "MELFALAN"
+  },
+  {
+    "code": "14385",
+    "name": "MERCAPTOPURINA"
+  },
+  {
+    "code": "14387",
+    "name": "MESNA"
+  },
+  {
+    "code": "14391",
+    "name": "METILPREDNISOLONA"
+  },
+  {
+    "code": "14394",
+    "name": "METOCLOPRAMIDA"
+  },
+  {
+    "code": "14396",
+    "name": "METOTREXATO"
+  },
+  {
+    "code": "14401",
+    "name": "MICOFENOLATO DE MOFETILO"
+  },
+  {
+    "code": "14405",
+    "name": "MITOMICINA C"
+  },
+  {
+    "code": "14437",
+    "name": "ONDANSETRON"
+  },
+  {
+    "code": "14439",
+    "name": "OXALIPLATINO"
+  },
+  {
+    "code": "14446",
+    "name": "PACLITAXEL"
+  },
+  {
+    "code": "14480",
+    "name": "PREDNISOLONA"
+  },
+  {
+    "code": "14481",
+    "name": "PREDNISONA"
+  },
+  {
+    "code": "14487",
+    "name": "PROCARBAZINA"
+  },
+  {
+    "code": "14518",
+    "name": "RITUXIMAB"
+  },
+  {
+    "code": "14556",
+    "name": "TACROLIMUS"
+  },
+  {
+    "code": "14557",
+    "name": "TAMOXIFENO"
+  },
+  {
+    "code": "14579",
+    "name": "TRASTUZUMAB"
+  },
+  {
+    "code": "14587",
+    "name": "TROPISETRON"
+  },
+  {
+    "code": "14616",
+    "name": "VINBLASTINA"
+  },
+  {
+    "code": "14617",
+    "name": "VINCRISTINA"
+  },
+  {
+    "code": "14678",
+    "name": "ACIDO IBANDRONICO"
+  },
+  {
+    "code": "14681",
+    "name": "ACIDO ZOLEDRONICO"
+  },
+  {
+    "code": "14696",
+    "name": "BICALUTAMIDA"
+  },
+  {
+    "code": "14890",
+    "name": "CAPECITABINA"
+  },
+  {
+    "code": "14891",
+    "name": "GEMCITABINA"
+  },
+  {
+    "code": "14892",
+    "name": "IRINOTECAN"
+  },
+  {
+    "code": "14893",
+    "name": "TEMOZOLAMIDA"
+  },
+  {
+    "code": "14898",
+    "name": "ABIRATERONA"
+  },
+  {
+    "code": "14899",
+    "name": "ALBUMINA MAS PACLITAXEL"
+  },
+  {
+    "code": "14900",
+    "name": "ANASTROZOL"
+  },
+  {
+    "code": "14901",
+    "name": "APREPITANT"
+  },
+  {
+    "code": "14902",
+    "name": "BASILIXIMAB"
+  },
+  {
+    "code": "14903",
+    "name": "BENDAMUSTINA"
+  },
+  {
+    "code": "14904",
+    "name": "BEVACIZUMAB"
+  },
+  {
+    "code": "14905",
+    "name": "BORTEZOMIB"
+  },
+  {
+    "code": "14906",
+    "name": "CETUXIMAB"
+  },
+  {
+    "code": "14907",
+    "name": "DASATANIB"
+  },
+  {
+    "code": "14908",
+    "name": "DOXORRUBICINA LIPOSOMAL"
+  },
+  {
+    "code": "14909",
+    "name": "ERLOTINIB"
+  },
+  {
+    "code": "14910",
+    "name": "EXEMESTANO"
+  },
+  {
+    "code": "14911",
+    "name": "FULVESTRANT"
+  },
+  {
+    "code": "14912",
+    "name": "IBRUTINIB"
+  },
+  {
+    "code": "14913",
+    "name": "LAPATINIB"
+  },
+  {
+    "code": "14914",
+    "name": "LENALIDOMIDA"
+  },
+  {
+    "code": "14915",
+    "name": "LETROZOL"
+  },
+  {
+    "code": "14916",
+    "name": "MICOFENOLATO SODICO"
+  },
+  {
+    "code": "14917",
+    "name": "PEMETREXED"
+  },
+  {
+    "code": "14918",
+    "name": "PERTUZUMAB"
+  },
+  {
+    "code": "14919",
+    "name": "SIROLIMUS"
+  },
+  {
+    "code": "14920",
+    "name": "SUNITINIB"
+  },
+  {
+    "code": "14046",
+    "name": "ALBUMINA HUMANA"
+  }
+]
