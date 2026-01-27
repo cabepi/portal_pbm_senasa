@@ -1,0 +1,12 @@
+{
+    "rewrites": [
+        {
+            "source": "/v1/:path*",
+            "destination": "https://dev.api.middleware.koneksi.com.do/v1/:path*"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
+        }
+    ]
+}
