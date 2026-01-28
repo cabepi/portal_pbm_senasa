@@ -9,7 +9,12 @@ export default defineConfig({
       '/v1': {
         target: 'https://dev.api.middleware.koneksi.com.do',
         changeOrigin: true,
-        secure: false, // In case of self-signed certs, though likelihood is low on public dev api
+        secure: false,
+      },
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false
       }
     }
   }

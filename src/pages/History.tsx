@@ -18,22 +18,26 @@ export const HistoryPage = () => {
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     useEffect(() => {
-        try {
-            const stored = localStorage.getItem('auth_history');
-            if (stored) {
-                const allHistory: HistoryItem[] = JSON.parse(stored);
-                // Filter by selected pharmacy if available
-                const filtered = selectedPharmacy && selectedPharmacy.code !== '00000'
-                    ? allHistory.filter(h => h.pharmacy?.code === selectedPharmacy.code)
-                    : allHistory; // If no pharmacy or "Ver Todo" (00000), show all
-                // "X should not see Y". If no pharmacy selected, maybe show empty state.
+        const fetchHistory = async () => {
+            try {
+                // Determine parameter
+                let url = '/api/history';
+                if (selectedPharmacy && selectedPharmacy.code !== '00000') {
+                    url += `?pharmacyCode=${selectedPharmacy.code}`;
+                }
 
-                setHistory(filtered.reverse()); // Newest first
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    setHistory(data);
+                }
+            } catch (e) {
+                console.error('Failed to fetch history', e);
             }
-        } catch (e) {
-            console.error('Failed to parse history', e);
-        }
-    }, [selectedPharmacy]); // Re-run when pharmacy changes
+        };
+
+        fetchHistory();
+    }, [selectedPharmacy]);
 
     const handleVoidClick = (item: HistoryItem) => {
         setSelectedAuth(item);
@@ -50,6 +54,7 @@ export const HistoryPage = () => {
         setVoidError(null);
 
         try {
+            // 1. Call External API
             const result = await drugsApi.void({
                 authorization_code: selectedAuth.authorizationCode || '',
                 pharmacy_code: selectedPharmacy?.code || '0',
@@ -60,25 +65,24 @@ export const HistoryPage = () => {
             if (result.status === 'COMPLETED' || result.status === 'ANULADA' || result.status === 'VOIDED') {
                 const newStatus = result.status === 'COMPLETED' ? 'ANULADA' : result.status;
 
-                // Update local state (only finding the item in current filtered view)
+                // 2. Update Database via our Serverless Function
+                await fetch('/api/history/void', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: selectedAuth.id,
+                        reason: voidReason,
+                        status: newStatus
+                    })
+                });
+
+                // 3. Update UI state locally to reflect change immediately
                 const updatedHistory = history.map(item =>
                     item.id === selectedAuth.id
                         ? { ...item, status: newStatus, message: `Anulada: ${voidReason}` }
                         : item
                 );
                 setHistory(updatedHistory);
-
-                // Update LocalStorage (We need to update the item in the FULL list)
-                const stored = localStorage.getItem('auth_history');
-                if (stored) {
-                    const allHistory: HistoryItem[] = JSON.parse(stored);
-                    const updatedAll = allHistory.map(item =>
-                        item.id === selectedAuth.id
-                            ? { ...item, status: newStatus, message: `Anulada: ${voidReason}` }
-                            : item
-                    );
-                    localStorage.setItem('auth_history', JSON.stringify(updatedAll));
-                }
 
                 setSuccessMessage('Autorización anulada correctamente.');
 

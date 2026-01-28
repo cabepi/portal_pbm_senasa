@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Search, MapPin, ChevronDown } from 'lucide-react';
+import { Search, MapPin, ChevronDown, Loader2 } from 'lucide-react';
 import { usePharmacy } from '../../contexts/PharmacyContext';
-import pharmaciesData from '../../data/pharmacies.json';
 import type { Pharmacy } from '../../types';
 
 export const PharmacySelector = () => {
     const { selectedPharmacy, setSelectedPharmacy, isLocked } = usePharmacy();
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
+    const [loading, setLoading] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const location = useLocation();
@@ -24,6 +25,13 @@ export const PharmacySelector = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [wrapperRef]);
 
+    // Reset "Ver Todo" selection if navigating away from history
+    useEffect(() => {
+        if (location.pathname !== '/historial' && selectedPharmacy?.code === '00000') {
+            setSelectedPharmacy(null);
+        }
+    }, [location.pathname, selectedPharmacy, setSelectedPharmacy]);
+
     // Focus input when opening
     useEffect(() => {
         if (isOpen && inputRef.current) {
@@ -31,20 +39,44 @@ export const PharmacySelector = () => {
         }
     }, [isOpen]);
 
-    let pharmaciesList = pharmaciesData;
+    // Fetch pharmacies when search term changes (debounced)
+    useEffect(() => {
+        const fetchPharmacies = async () => {
+            setLoading(true);
+            try {
+                // In production, this hits the Vercel Function
+                const response = await fetch(`/api/pharmacies?search=${encodeURIComponent(searchTerm)}`);
+                if (response.ok) {
+                    const data = await response.json();
 
-    // Add "Ver Todo" option only on History page
-    if (location.pathname === '/historial') {
-        const viewAllOption: Pharmacy = { code: '00000', name: 'Ver Todo' };
-        pharmaciesList = [viewAllOption, ...pharmaciesData]; // Type casting implicitly handled as long as structure matches
-    }
+                    let list = data;
+                    // Add "Ver Todo" option only on History page
+                    if (location.pathname === '/historial') {
+                        const viewAllOption: Pharmacy = { code: '00000', name: 'Ver Todo' };
+                        // Avoid duplicates if searched
+                        if (!list.find((p: Pharmacy) => p.code === '00000')) {
+                            list = [viewAllOption, ...list];
+                        }
+                    }
+                    setPharmacies(list);
+                }
+            } catch (error) {
+                console.error("Failed to fetch pharmacies", error);
+            } finally {
+                setLoading(false);
+            }
+        };
 
-    const filteredPharmacies = pharmaciesList
-        .filter((p: Pharmacy) =>
-            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.code.includes(searchTerm)
-        )
-        .slice(0, 50); // Limit results for performance
+        const timeoutId = setTimeout(() => {
+            // Fetch all initially if empty or search
+            if (isOpen) {
+                fetchPharmacies();
+            }
+        }, 300);
+
+        return () => clearTimeout(timeoutId);
+    }, [searchTerm, isOpen, location.pathname]);
+
 
     const handleSelect = (pharmacy: Pharmacy) => {
         setSelectedPharmacy(pharmacy);
@@ -118,8 +150,12 @@ export const PharmacySelector = () => {
                     </div>
 
                     <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
-                        {filteredPharmacies.length > 0 ? (
-                            filteredPharmacies.map((pharmacy: Pharmacy) => (
+                        {loading ? (
+                            <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                <Loader2 className="animate-spin" size={20} style={{ margin: '0 auto' }} />
+                            </div>
+                        ) : pharmacies.length > 0 ? (
+                            pharmacies.map((pharmacy: Pharmacy) => (
                                 <div
                                     key={pharmacy.code}
                                     onClick={() => handleSelect(pharmacy)}
@@ -134,7 +170,6 @@ export const PharmacySelector = () => {
                                         transition: 'background 0.2s',
                                         marginBottom: '2px'
                                     }}
-                                    className="hover:bg-slate-100" // Tailwind utility if available, or use inline style for hover in pure react via state? Inline hover is tricky.
                                     onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
                                     onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >

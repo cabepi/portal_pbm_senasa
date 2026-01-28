@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { beneficiariesApi, drugsApi } from '../api/endpoints';
 import { usePharmacy } from '../contexts/PharmacyContext';
 import { MedicationSelector } from '../components/ui/MedicationSelector';
-import medicationsData from '../data/medications.json';
 import type { Beneficiary, MedicationModel, AuthorizeMedicationResponse } from '../types';
 import { Plus, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,7 +18,7 @@ export const Consultation = () => {
 
     // Auth State
     const [medications, setMedications] = useState<MedicationModel[]>([]);
-    const [newMed, setNewMed] = useState({ code: '', quantity: 1, price: 0 });
+    const [newMed, setNewMed] = useState({ code: '', quantity: 1, price: 0, name: '' });
     const [authResult, setAuthResult] = useState<AuthorizeMedicationResponse | null>(null);
 
     // Config
@@ -82,16 +81,13 @@ export const Consultation = () => {
 
     const addMedication = () => {
         if (newMed.code && newMed.quantity > 0 && newMed.price > 0) {
-            const medInfo = medicationsData.find((m: any) => m.code === newMed.code);
-            const name = medInfo ? medInfo.name : 'Desconocido';
-
             setMedications([...medications, {
                 code: newMed.code,
                 quantity: newMed.quantity,
                 price: newMed.price,
-                name: name
+                name: newMed.name || 'Desconocido'
             }]);
-            setNewMed({ code: '', quantity: 1, price: 0 });
+            setNewMed({ code: '', quantity: 1, price: 0, name: '' });
         }
     };
 
@@ -146,11 +142,10 @@ export const Consultation = () => {
             setAuthResult(result);
             setStep('result');
 
-            // 4. Save to Session History
+            // 4. Save to Database History
             try {
                 const historyItem = {
-                    id: crypto.randomUUID(),
-                    timestamp: new Date().toISOString(),
+                    timestamp: new Date().toISOString(), // Optional, server sets it too but good for data integrity if passed
                     beneficiaryName: `${beneficiary.name} ${beneficiary.last_name}`,
                     identification: beneficiary.national_identification_number,
                     status: result.status || (result.estado ? result.estado : 'UNKNOWN'),
@@ -174,10 +169,13 @@ export const Consultation = () => {
                     }))
                 };
 
-                const storedHistory = localStorage.getItem('auth_history');
-                const historyList = storedHistory ? JSON.parse(storedHistory) : [];
-                historyList.push(historyItem);
-                localStorage.setItem('auth_history', JSON.stringify(historyList));
+                // Use fetch to save to Postgres
+                await fetch('/api/history', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(historyItem)
+                });
+
             } catch (e) {
                 console.error("Failed to save history", e);
             }
@@ -397,7 +395,7 @@ export const Consultation = () => {
                         <div style={{ display: 'grid', gridTemplateColumns: '3fr 0.8fr 1fr auto', gap: '1rem', marginBottom: '1rem', alignItems: 'start' }}>
                             <MedicationSelector
                                 value={newMed.code}
-                                onChange={code => setNewMed({ ...newMed, code })}
+                                onChange={med => setNewMed({ ...newMed, code: med?.code || '', name: med?.name || '' })}
                             />
                             <input
                                 type="number"
