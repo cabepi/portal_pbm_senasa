@@ -11,6 +11,14 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const searchTerm = Array.isArray(search) ? search[0] : search;
 
     try {
+        // Debug: Log environment status (DO NOT log full values in production)
+        const dbUrl = process.env.POSTGRES_URL;
+        console.log(`[Vercel] DB Connection Attempt. POSTGRES_URL defined: ${!!dbUrl}`);
+
+        if (!dbUrl) {
+            throw new Error("Missing POSTGRES_URL environment variable.");
+        }
+
         let result;
         if (searchTerm) {
             // Safe parameterized query
