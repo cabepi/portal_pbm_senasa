@@ -84,6 +84,19 @@ async function searchHistory(term: string, pharmacyCode?: string) {
     }));
 }
 
+async function getGlobalStats() {
+    try {
+        const pharmCount = await sql`SELECT COUNT(*) FROM pharmacies`;
+        const medCount = await sql`SELECT COUNT(*) FROM medications`;
+        return {
+            total_pharmacies: pharmCount.rows[0].count,
+            total_medications: medCount.rows[0].count
+        };
+    } catch (e) {
+        return { total_pharmacies: 'Desconocido', total_medications: 'Desconocido' };
+    }
+}
+
 // --- Intent Router ---
 function detectIntent(message: string): 'MEDICATIONS' | 'PHARMACIES' | 'HISTORY' | 'GREETING' | 'GENERAL' {
     const msg = message.toLowerCase();
@@ -163,6 +176,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
         // 2. Build System Prompt with Context
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+        // Get Stats for context
+        const stats = await getGlobalStats();
+
         const pharmacyContextStr = pharmacyDetails
             ? `ESTÁS ASISTIENDO A: ${pharmacyDetails.name} (Código: ${pharmacyDetails.code}).`
             : "No hay farmacia seleccionada actualmente.";
@@ -173,6 +189,10 @@ export default async function handler(request: VercelRequest, response: VercelRe
             CONTEXTO DE SESIÓN:
             FECHA ACTUAL: ${new Date().toLocaleDateString('es-DO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             ${pharmacyContextStr}
+
+            ESTADÍSTICAS GLOBALES DEL SISTEMA:
+            - Total de Farmacias Registradas: ${stats.total_pharmacies}
+            - Total de Medicamentos en Catálogo: ${stats.total_medications}
 
             INTENCIÓN DETECTADA: ${intent}
             FUENTE DE DATOS CONSULTADA: ${sourceTable}
