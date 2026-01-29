@@ -31,7 +31,7 @@ const pollMonitor = async (location: string) => {
     // Fetch the actual data from the monitor
     let monitorResponse = await apiClient.get(fetchUrl);
     let attempts = 0;
-    const maxAttempts = 20; // Safety break (60 seconds max)
+    const maxAttempts = 10; // 10 attempts * 3s = 30 seconds max
 
     while ((monitorResponse.data?.status === 'INITIATED' || monitorResponse.data?.status === 'PENDING') && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
@@ -39,8 +39,20 @@ const pollMonitor = async (location: string) => {
         attempts++;
     }
 
+    // Check if we timed out while still pending
+    if ((monitorResponse.data?.status === 'INITIATED' || monitorResponse.data?.status === 'PENDING') && attempts >= maxAttempts) {
+        throw new Error("El servicio ha fallado pues esta tardando mas de lo normal, contactar con el personal tecnico.");
+    }
+
     // Check final status
     if (monitorResponse.data?.status === 'COMPLETED') {
+        // Extract process_tracking_id from headers
+        const trackingId = monitorResponse.headers['process-tracking-id'] || monitorResponse.headers['Process-Tracking-Id'] || monitorResponse.headers['process_tracking_id'];
+        if (trackingId) {
+            // Attach to data object non-invasively if possible, or just expect caller to know
+            // User requested property rename to kebab-case
+            return { ...monitorResponse.data, 'process-tracking-id': trackingId };
+        }
         return monitorResponse.data;
     } else if (monitorResponse.data?.status) {
         if (monitorResponse.data.status !== 'COMPLETED') {
@@ -76,10 +88,15 @@ export const beneficiariesApi = {
 };
 
 export const drugsApi = {
-    claim: async (data: AuthorizeMedicationRequest) => {
+    claim: async (data: AuthorizeMedicationRequest, processTrackingId?: string) => {
         // Swagger: POST /drugs/claim
         // Body: AuthorizeMedicationRequest (English fields)
-        const response = await apiClient.post<AuthorizeMedicationResponse>('/drugs/claim', data);
+        const headers: Record<string, string> = {};
+        if (processTrackingId) {
+            headers['process-tracking-id'] = processTrackingId;
+        }
+
+        const response = await apiClient.post<AuthorizeMedicationResponse>('/drugs/claim', data, { headers });
 
         if (response.status === 202) {
             const location = response.headers['location'] || response.headers['Location'];
@@ -89,8 +106,12 @@ export const drugsApi = {
         return response.data;
     },
 
-    validate: async (data: Omit<AuthorizeMedicationRequest, 'external_authorization'>) => {
-        const response = await apiClient.post('/drugs/validate', data);
+    validate: async (data: Omit<AuthorizeMedicationRequest, 'external_authorization'>, processTrackingId?: string) => {
+        const headers: Record<string, string> = {};
+        if (processTrackingId) {
+            headers['process-tracking-id'] = processTrackingId;
+        }
+        const response = await apiClient.post('/drugs/validate', data, { headers });
         return response.data;
     },
 
@@ -110,8 +131,12 @@ export const drugsApi = {
         return response.data;
     },
 
-    void: async (data: { authorization_code: string, pharmacy_code: string, reason: string }) => {
-        const response = await apiClient.post('/drugs/claim/void', data);
+    void: async (data: { authorization_code: string, pharmacy_code: string, reason: string }, processTrackingId?: string) => {
+        const headers: Record<string, string> = {};
+        if (processTrackingId) {
+            headers['process-tracking-id'] = processTrackingId;
+        }
+        const response = await apiClient.post('/drugs/claim/void', data, { headers });
 
         if (response.status === 202) {
             const location = response.headers['location'] || response.headers['Location'];

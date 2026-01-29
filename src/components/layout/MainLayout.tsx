@@ -1,6 +1,7 @@
 import { Link, Outlet } from 'react-router-dom';
 import { Activity, ShieldCheck, Home, Search } from 'lucide-react';
 import { PharmacySelector } from '../ui/PharmacySelector';
+import { ChatAssistant } from '../Chat/ChatAssistant';
 
 export const MainLayout = () => {
     return (
@@ -34,6 +35,8 @@ export const MainLayout = () => {
             <main className="container" style={{ paddingTop: '2rem' }}>
                 <Outlet />
             </main>
+
+            <ChatAssistant />
         </div>
     );
 };

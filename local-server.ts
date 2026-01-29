@@ -43,6 +43,9 @@ app.post('/api/history', (req, res) => adapt('./api/history.ts', req, res));
 // Void
 app.post('/api/history/void', (req, res) => adapt('./api/history/void.ts', req, res));
 
+// Chat
+app.post('/api/chat', (req, res) => adapt('./api/chat.ts', req, res));
+
 
 const PORT = 3001;
 app.listen(PORT, () => {

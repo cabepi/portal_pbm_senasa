@@ -11,7 +11,7 @@ interface PharmacyContextType {
 const PharmacyContext = createContext<PharmacyContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'selected_pharmacy';
-const DEFAULT_PHARMACY: Pharmacy = { code: '20414', name: 'FARMACIA CANDILEJA GB SRL' };
+const DEFAULT_PHARMACY: Pharmacy = { code: '00000', name: 'Ver Todos' };
 
 export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [selectedPharmacy, setSelectedPharmacyState] = useState<Pharmacy | null>(null);

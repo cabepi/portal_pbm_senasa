@@ -128,4 +128,7 @@ export interface HistoryItem {
     copaymentAmount?: number;
     invoiceTotal?: number;
   }[];
+  beneficiaryDetails?: BeneficiaryResult;
+  processTrackingId?: string;
+  errorDetail?: string | object;
 }

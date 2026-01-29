@@ -26,11 +26,7 @@ export const PharmacySelector = () => {
     }, [wrapperRef]);
 
     // Reset "Ver Todo" selection if navigating away from history
-    useEffect(() => {
-        if (location.pathname !== '/historial' && selectedPharmacy?.code === '00000') {
-            setSelectedPharmacy(null);
-        }
-    }, [location.pathname, selectedPharmacy, setSelectedPharmacy]);
+    // [Removed] per user request to keep 00000 as global default
 
     // Focus input when opening
     useEffect(() => {
@@ -50,13 +46,11 @@ export const PharmacySelector = () => {
                     const data = await response.json();
 
                     let list = data;
-                    // Add "Ver Todo" option only on History page
-                    if (location.pathname === '/historial') {
-                        const viewAllOption: Pharmacy = { code: '00000', name: 'Ver Todo' };
-                        // Avoid duplicates if searched
-                        if (!list.find((p: Pharmacy) => p.code === '00000')) {
-                            list = [viewAllOption, ...list];
-                        }
+                    // Add "Ver Todo" option globally
+                    const viewAllOption: Pharmacy = { code: '00000', name: 'Ver Todo' };
+                    // Avoid duplicates if searched
+                    if (!list.find((p: Pharmacy) => p.code === '00000')) {
+                        list = [viewAllOption, ...list];
                     }
                     setPharmacies(list);
                 }

@@ -14,7 +14,9 @@ export const Consultation = () => {
 
     // Consult State
     const [idNumber, setIdNumber] = useState('');
+
     const [beneficiary, setBeneficiary] = useState<Beneficiary | null>(null);
+    const [processTrackingId, setProcessTrackingId] = useState<string | undefined>(undefined);
 
     // Auth State
     const [medications, setMedications] = useState<MedicationModel[]>([]);
@@ -42,7 +44,9 @@ export const Consultation = () => {
         setError(null);
         // Do NOT clear beneficiary here so we can keep showing it if we want, 
         // but typically a new search implies clearing old results first.
+
         setBeneficiary(null);
+        setProcessTrackingId(undefined);
 
         try {
             const result = await beneficiariesApi.search({
@@ -62,7 +66,12 @@ export const Consultation = () => {
                     setError(data.error || 'Error desconocido al consultar el afiliado.');
                     setBeneficiary(null);
                 } else {
+
                     setBeneficiary(data);
+                    // Extract tracking ID if exists
+                    // Note: beneficiariesApi.search (via pollMonitor) attaches process_tracking_id to the data
+                    // Cast to any to access dynamic property or update Type definition. Using any for speed.
+                    setProcessTrackingId((result as any)['process-tracking-id']);
                 }
             } else {
                 setError('No se pudo obtener información del afiliado.');
@@ -76,6 +85,10 @@ export const Consultation = () => {
     };
 
     const startAuthorization = () => {
+        if (!selectedPharmacy || selectedPharmacy.code === '00000') {
+            setError('Debe seleccionar una farmacia válida para autorizar (no puede ser "Ver Todos").');
+            return;
+        }
         setStep('authorize');
     };
 
@@ -101,6 +114,10 @@ export const Consultation = () => {
 
     const handleAuthorize = async () => {
         if (!beneficiary) return;
+        if (!selectedPharmacy || selectedPharmacy.code === '00000') {
+            setError('Debe seleccionar una farmacia válida para procesar la autorización.');
+            return;
+        }
         setLoading(true);
         setError(null);
 
@@ -125,8 +142,9 @@ export const Consultation = () => {
                     pharmacy_code: payload.pharmacy_code,
                     affiliate_contract: payload.affiliate_contract,
                     pyp_program_code: payload.pyp_program_code,
+
                     drugs: payload.drugs
-                });
+                }, processTrackingId);
             } catch (validateErr: any) {
                 console.error("Validation error", validateErr);
                 if (validateErr.response && validateErr.response.data && validateErr.response.data.details) {
@@ -138,7 +156,7 @@ export const Consultation = () => {
             }
 
             // 3. Claim (Async Monitor)
-            const result = await drugsApi.claim(payload);
+            const result = await drugsApi.claim(payload, processTrackingId);
             setAuthResult(result);
             setStep('result');
 
@@ -166,7 +184,10 @@ export const Consultation = () => {
                         authorizedAmount: 0,
                         copaymentAmount: 0,
                         invoiceTotal: 0
-                    }))
+                    })),
+                    beneficiaryDetails: beneficiary, // Saving full affiliate details as requested
+                    processTrackingId: processTrackingId, // Persist for voiding later
+                    errorDetail: result.details || result.error_description || null
                 };
 
                 // Use fetch to save to Postgres
@@ -358,6 +379,12 @@ export const Consultation = () => {
                                     </div>
                                 )}
 
+                                {error && (
+                                    <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <AlertCircle size={20} />
+                                        {error}
+                                    </div>
+                                )}
                                 <button
                                     onClick={startAuthorization}
                                     className="btn-primary"
@@ -392,6 +419,12 @@ export const Consultation = () => {
                         </div>
 
                         <h3 style={{ marginBottom: '1rem' }}>Medicamentos</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: '3fr 0.8fr 1fr auto', gap: '1rem', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                            <div>Medicamento</div>
+                            <div>Cantidad</div>
+                            <div>Precio</div>
+                            <div></div>
+                        </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '3fr 0.8fr 1fr auto', gap: '1rem', marginBottom: '1rem', alignItems: 'start' }}>
                             <MedicationSelector
                                 value={newMed.code}
@@ -526,7 +559,7 @@ export const Consultation = () => {
                             </div>
                         )}
 
-                        <button onClick={() => { setStep('consult'); setBeneficiary(null); setMedications([]); }} style={{ marginTop: '2rem', display: 'block', width: '100%', padding: '1rem', background: 'rgba(0,0,0,0.05)', border: 'none', color: 'inherit', borderRadius: '8px', cursor: 'pointer' }}>
+                        <button onClick={() => { setStep('consult'); setBeneficiary(null); setMedications([]); setProcessTrackingId(undefined); }} style={{ marginTop: '2rem', display: 'block', width: '100%', padding: '1rem', background: 'rgba(0,0,0,0.05)', border: 'none', color: 'inherit', borderRadius: '8px', cursor: 'pointer' }}>
                             Nueva Consulta
                         </button>
 

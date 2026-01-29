@@ -59,7 +59,7 @@ export const HistoryPage = () => {
                 authorization_code: selectedAuth.authorizationCode || '',
                 pharmacy_code: selectedPharmacy?.code || '0',
                 reason: voidReason
-            });
+            }, selectedAuth.processTrackingId);
 
             // Check resulting status
             if (result.status === 'COMPLETED' || result.status === 'ANULADA' || result.status === 'VOIDED') {
@@ -137,6 +137,7 @@ export const HistoryPage = () => {
                                 <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Afiliado</th>
                                 <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Medicamentos</th>
                                 <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap' }}>Estado</th>
+                                <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap' }}>Motivo / Detalle</th>
                                 <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap' }}>Código Autorización</th>
                                 <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap' }}>Acciones</th>
                             </tr>
@@ -212,6 +213,24 @@ export const HistoryPage = () => {
                                         }}>
                                             {item.status}
                                         </span>
+                                    </td>
+                                    <td style={{ padding: '1rem', fontSize: '0.85rem', maxWidth: '250px' }}>
+                                        {item.errorDetail ? (
+                                            Array.isArray(item.errorDetail) ? (
+                                                <ul style={{ margin: 0, paddingLeft: '1rem' }}>
+                                                    {item.errorDetail.map((d: any, idx: number) => (
+                                                        <li key={idx}>
+                                                            {d.field ? <strong>{d.field}: </strong> : null}
+                                                            {d.error || d.message || JSON.stringify(d)}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                typeof item.errorDetail === 'object' ? JSON.stringify(item.errorDetail) : item.errorDetail
+                                            )
+                                        ) : (
+                                            <span style={{ color: 'var(--text-secondary)' }}>{item.message || '-'}</span>
+                                        )}
                                     </td>
                                     <td style={{ padding: '1rem', fontFamily: 'monospace', fontWeight: 600, whiteSpace: 'nowrap' }}>
                                         {item.authorizationCode || '-'}
