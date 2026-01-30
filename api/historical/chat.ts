@@ -1,11 +1,32 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { secondaryDb } from '../lib/secondary-db';
-import { allowCors } from '../lib/cors';
+import { Pool } from 'pg';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
 
-// Schema Definition for the LLM
+// --- Shared Logic Inlined ---
+const pool = new Pool(
+    process.env.SECONDARY_POSTGRES_URL
+        ? {
+            connectionString: process.env.SECONDARY_POSTGRES_URL,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 5000,
+        }
+        : {
+            host: process.env.KONTROLA_DB_HOST,
+            user: process.env.KONTROLA_DB_USER,
+            password: process.env.KONTROLA_DB_PASSWORD,
+            database: process.env.KONTROLA_DB_NAME,
+            port: 5432,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 5000,
+        }
+);
+
+const secondaryDb = {
+    query: (text: string, params?: any[]) => pool.query(text, params),
+};
+
 const TABLE_SCHEMA = `
 Table "dhm" (Data Histórica de Medicamentos):
 - codautorizacion (varchar): Código único de la autorización
@@ -25,7 +46,21 @@ Table "dhm" (Data Histórica de Medicamentos):
 - reversado (varchar): 'S' si fue anulada/reversada, 'N' o null si está activa
 `;
 
-async function handler(request: VercelRequest, response: VercelResponse) {
+export default async function handler(request: VercelRequest, response: VercelResponse) {
+    // --- CORS Headers ---
+    response.setHeader('Access-Control-Allow-Credentials', 'true');
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    response.setHeader(
+        'Access-Control-Allow-Headers',
+        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    );
+
+    if (request.method === 'OPTIONS') {
+        return response.status(200).end();
+    }
+    // ---------------------
+
     if (request.method !== 'POST') return response.status(405).json({ error: 'Method Not Allowed' });
 
     const { message, previousMessages } = request.body;
@@ -79,7 +114,6 @@ async function handler(request: VercelRequest, response: VercelResponse) {
         try {
             parsedParams = JSON.parse(responseText);
         } catch (e) {
-            // Fallback for markdown cleanup if model disregards JSON mode
             const cleanText = responseText.replace(/```json/g, '').replace(/```/g, '');
             try {
                 parsedParams = JSON.parse(cleanText);
@@ -96,27 +130,19 @@ async function handler(request: VercelRequest, response: VercelResponse) {
             });
         }
 
-        // Security Check
         const sqlRaw = (parsedParams.sql || "").trim();
         const sqlUpper = sqlRaw.toUpperCase();
-
-        // Remove trailing semicolon if present for safety check consistency
         const sqlClean = sqlUpper.endsWith(';') ? sqlUpper.slice(0, -1) : sqlUpper;
 
         if (!sqlClean.startsWith("SELECT")) {
-            console.error("Blocked SQL (Not SELECT):", sqlRaw);
             return response.status(400).json({ error: "Consulta no permitida (Solo SELECT)." });
         }
         if (sqlClean.includes("DROP ") || sqlClean.includes("DELETE ") || sqlClean.includes("UPDATE ") || sqlClean.includes("INSERT ") || sqlClean.includes("ALTER ") || sqlClean.includes("TRUNCATE ")) {
-            console.error("Blocked SQL (Unsafe):", sqlRaw);
             return response.status(400).json({ error: "Consulta detectada como insegura." });
         }
 
-        // Execute SQL
         const dbResult = await secondaryDb.query(sqlRaw);
 
-        // Summarize Result with AI
-        // We do a second quick pass to convert rows to natural language summary
         const summaryModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         const summaryPrompt = `
             Pregunta original: "${message}"
@@ -148,5 +174,3 @@ async function handler(request: VercelRequest, response: VercelResponse) {
         return response.status(500).json({ error: error.message });
     }
 }
-
-export default allowCors(handler);

@@ -1,8 +1,44 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { secondaryDb } from '../lib/secondary-db';
-import { allowCors } from '../lib/cors';
+import { Pool } from 'pg';
 
-async function handler(request: VercelRequest, response: VercelResponse) {
+// --- Shared Logic Inlined for Vercel Reliability ---
+const pool = new Pool(
+    process.env.SECONDARY_POSTGRES_URL
+        ? {
+            connectionString: process.env.SECONDARY_POSTGRES_URL,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 5000,
+        }
+        : {
+            host: process.env.KONTROLA_DB_HOST,
+            user: process.env.KONTROLA_DB_USER,
+            password: process.env.KONTROLA_DB_PASSWORD,
+            database: process.env.KONTROLA_DB_NAME,
+            port: 5432,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 5000,
+        }
+);
+
+const secondaryDb = {
+    query: (text: string, params?: any[]) => pool.query(text, params),
+};
+
+export default async function handler(request: VercelRequest, response: VercelResponse) {
+    // --- CORS Headers ---
+    response.setHeader('Access-Control-Allow-Credentials', 'true');
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    response.setHeader(
+        'Access-Control-Allow-Headers',
+        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    );
+
+    if (request.method === 'OPTIONS') {
+        return response.status(200).end();
+    }
+    // ---------------------
+
     if (request.method !== 'GET') return response.status(405).json({ error: 'Method Not Allowed' });
 
     try {
@@ -12,12 +48,6 @@ async function handler(request: VercelRequest, response: VercelResponse) {
 
         const sortField = (request.query.sortField as string) || 'fechareceta';
         const sortOrder = (request.query.sortOrder as string)?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-
-        // Dynamic Filter Generation
-        // Expects `filters` as a JSON string: { "col": "value", "col2": "val2" }
-        // Or simple query params? Let's support simple query params for now as "search" 
-        // OR specific fields if passed.
-        // For simplicity in this iteration, we'll parse a `search` param to search across main fields.
 
         const search = request.query.search as string;
         let whereClause = "WHERE 1=1";
@@ -36,15 +66,12 @@ async function handler(request: VercelRequest, response: VercelResponse) {
             paramIndex++;
         }
 
-        // Specific column filters can be added here if needed by parsing other query params
-        // Example: ?cedula=402...
         if (request.query.cedula) {
             whereClause += ` AND cedula ILIKE $${paramIndex}`;
             values.push(`%${request.query.cedula}%`);
             paramIndex++;
         }
 
-        // Secure Sort Field (Prevent SQL Injection)
         const allowedSorts = ['fechareceta', 'nombrefarmacia', 'nombreafiliado', 'totalcobertura', 'codautorizacion'];
         const safeSortField = allowedSorts.includes(sortField) ? sortField : 'fechareceta';
 
@@ -58,7 +85,6 @@ async function handler(request: VercelRequest, response: VercelResponse) {
 
         const countQuery = `SELECT count(*) FROM dhm ${whereClause}`;
 
-        // Run in parallel
         const [rowsResult, countResult] = await Promise.all([
             secondaryDb.query(query, [...values, limit, offset]),
             secondaryDb.query(countQuery, values)
@@ -79,5 +105,3 @@ async function handler(request: VercelRequest, response: VercelResponse) {
         return response.status(500).json({ error: error.message || 'Internal Server Error' });
     }
 }
-
-export default allowCors(handler);
