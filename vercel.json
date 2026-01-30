@@ -5,7 +5,7 @@
             "destination": "https://dev.api.middleware.koneksi.com.do/v1/:path*"
         },
         {
-            "source": "/(.*)",
+            "source": "/((?!api/.*).*)",
             "destination": "/index.html"
         }
     ]
