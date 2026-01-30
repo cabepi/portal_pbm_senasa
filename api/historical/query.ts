@@ -1,8 +1,8 @@
-
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { secondaryDb } from '../lib/secondary-db';
+import { allowCors } from '../lib/cors';
 
-export default async function handler(request: VercelRequest, response: VercelResponse) {
+async function handler(request: VercelRequest, response: VercelResponse) {
     if (request.method !== 'GET') return response.status(405).json({ error: 'Method Not Allowed' });
 
     try {
@@ -79,3 +79,5 @@ export default async function handler(request: VercelRequest, response: VercelRe
         return response.status(500).json({ error: error.message || 'Internal Server Error' });
     }
 }
+
+export default allowCors(handler);

@@ -1,7 +1,7 @@
-
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { secondaryDb } from '../lib/secondary-db';
+import { allowCors } from '../lib/cors';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
 
@@ -25,7 +25,7 @@ Table "dhm" (Data Histórica de Medicamentos):
 - reversado (varchar): 'S' si fue anulada/reversada, 'N' o null si está activa
 `;
 
-export default async function handler(request: VercelRequest, response: VercelResponse) {
+async function handler(request: VercelRequest, response: VercelResponse) {
     if (request.method !== 'POST') return response.status(405).json({ error: 'Method Not Allowed' });
 
     const { message, previousMessages } = request.body;
@@ -148,3 +148,5 @@ export default async function handler(request: VercelRequest, response: VercelRe
         return response.status(500).json({ error: error.message });
     }
 }
+
+export default allowCors(handler);
