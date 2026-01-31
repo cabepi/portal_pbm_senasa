@@ -69,6 +69,29 @@
     /* Green glowish */
 }
 
+.btn-export {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 2rem;
+    border: none;
+    background: #0f172a;
+    /* Dark sleek background */
+    color: white;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+    box-shadow: 0 4px 6px rgba(15, 23, 42, 0.15);
+    margin-left: 0.75rem;
+}
+
+.btn-export:hover {
+    background: #334155;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(15, 23, 42, 0.2);
+}
+
 /* --- Grid Controls --- */
 .grid-controls {
     background: white;

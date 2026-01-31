@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, ChevronLeft, ChevronRight, Database, ArrowUp, ArrowDown, Sparkles, Send, Eye, X } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Database, ArrowUp, ArrowDown, Sparkles, Send, Eye, X, Download } from 'lucide-react';
 import '../styles/HistoricalData.css';
 
 interface HistoryRow {
@@ -103,7 +103,7 @@ const HistoricalData: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-    }, [pagination.page, sort]);
+    }, [pagination.page, pagination.limit, sort]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -147,6 +147,40 @@ const HistoricalData: React.FC = () => {
         }
     }
 
+    const handleExportCSV = () => {
+        if (!data || data.length === 0) return;
+
+        // 1. Define Headers (Use visible columns + visible detail fields for completeness)
+        // Or simply strict dumb dump of everything? User said "data shown in data grid".
+        // Let's dump the raw data object keys since it contains everything relevant.
+        // We will format headers nicely though.
+        const headers = Object.keys(data[0]);
+
+        // 2. Map Data to CSV Rows
+        const csvRows = [
+            headers.join(';'), // Header Row
+            ...data.map(row => {
+                return headers.map(header => {
+                    const val = row[header as keyof HistoryRow] || '';
+                    // Escape quotes and handle semicolons in content
+                    const escaped = String(val).replace(/"/g, '""');
+                    return `"${escaped}"`;
+                }).join(';');
+            })
+        ];
+
+        // 3. Create Blob and Download
+        const csvString = csvRows.join('\r\n');
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `data_historica_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleChatSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         processChat(chatInput);
@@ -171,6 +205,14 @@ const HistoricalData: React.FC = () => {
                     >
                         <Sparkles size={18} />
                         {showChat ? 'Ocultar Analista' : 'Abrir Analista IA'}
+                    </button>
+                    <button
+                        className="btn-export"
+                        onClick={handleExportCSV}
+                        title="Descargar datos visibles"
+                    >
+                        <Download size={18} />
+                        Exportar CSV
                     </button>
                 </header>
 
@@ -240,6 +282,20 @@ const HistoricalData: React.FC = () => {
                 </div>
 
                 <div className="pagination-controls">
+                    <div className="limit-selector" style={{ marginRight: '1rem' }}>
+                        <select
+                            value={pagination.limit}
+                            onChange={(e) => setPagination({ ...pagination, page: 1, limit: parseInt(e.target.value) })}
+                            style={{ padding: '4px', borderRadius: '4px', border: '1px solid #ddd' }}
+                        >
+                            <option value={20}>20 por pág.</option>
+                            <option value={50}>50 por pág.</option>
+                            <option value={100}>100 por pág.</option>
+                            <option value={500}>500 por pág.</option>
+                            <option value={1000}>1,000 por pág.</option>
+                        </select>
+                    </div>
+
                     <button
                         disabled={pagination.page === 1}
                         onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
