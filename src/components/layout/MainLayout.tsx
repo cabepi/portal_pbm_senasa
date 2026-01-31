@@ -1,10 +1,18 @@
-import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Activity, ShieldCheck, Home, Search, Database } from 'lucide-react';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Activity, ShieldCheck, Home, Search, Database, LogOut } from 'lucide-react';
 import { PharmacySelector } from '../ui/PharmacySelector';
 import { ChatAssistant } from '../Chat/ChatAssistant';
 
 export const MainLayout = () => {
     const location = useLocation();
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+    };
+
     return (
         <div className="min-h-screen">
             <nav className="glass-panel" style={{ borderRadius: 0, borderTop: 0, borderLeft: 0, borderRight: 0, position: 'sticky', top: 0, zIndex: 1000 }}>
@@ -32,6 +40,23 @@ export const MainLayout = () => {
                         <Link to="/historial" style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Activity size={18} /> Historial
                         </Link>
+                        <button
+                            onClick={handleLogout}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#ef4444',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                cursor: 'pointer',
+                                fontSize: '1rem',
+                                padding: 0
+                            }}
+                            title="Cerrar Sesión"
+                        >
+                            <LogOut size={18} /> Salir
+                        </button>
                     </div>
                 </div>
             </nav>

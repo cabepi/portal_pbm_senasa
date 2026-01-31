@@ -50,6 +50,9 @@ app.post('/api/chat', (req, res) => adapt('./api/chat.ts', req, res));
 app.get('/api/historical/query', (req, res) => adapt('./api/historical/query.ts', req, res));
 app.post('/api/historical/chat', (req, res) => adapt('./api/historical/chat.ts', req, res));
 
+// Auth
+app.post('/api/auth/login', (req, res) => adapt('./api/auth/login.ts', req, res));
+
 
 const PORT = 3001;
 app.listen(PORT, () => {
@@ -58,6 +61,7 @@ app.listen(PORT, () => {
    - /api/pharmacies
    - /api/medications
    - /api/history
+   - /api/auth/login
    Proxy configured in Vite should forward /api requests here.
 `);
 });
