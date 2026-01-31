@@ -1,9 +1,36 @@
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import pool from '../lib/db';
+import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { allowCors } from '../lib/cors';
+
+// --- Inline CORS Helper ---
+function allowCors(fn: Function) {
+    return async (req: VercelRequest, res: VercelResponse) => {
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Allow-Origin', '*'); // Adjust for production security if needed, but * works for now
+        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+        res.setHeader(
+            'Access-Control-Allow-Headers',
+            'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+        );
+
+        if (req.method === 'OPTIONS') {
+            res.status(200).end();
+            return;
+        }
+
+        return await fn(req, res);
+    };
+}
+
+// --- Inline DB Connection ---
+// We create the pool OUTSIDE the handler to take advantage of connection reuse in hot lambdas
+const pool = new Pool({
+    connectionString: process.env.POSTGRES_URL,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 5000,
+});
 
 const handler = async (req: VercelRequest, res: VercelResponse) => {
     if (req.method !== 'POST') {
@@ -45,9 +72,13 @@ const handler = async (req: VercelRequest, res: VercelResponse) => {
             }
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Login error:', error);
-        return res.status(500).json({ error: 'Internal Server Error' });
+        // Better error logging for Vercel
+        return res.status(500).json({
+            error: 'Internal Server Error',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 };
 
