@@ -126,7 +126,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
             IMPORTANTE SOBRE FECHAS:
             - Las columnas 'fechareceta' y 'fechadesolicitud' son VARCHAR (no DATE).
-            - NO uses `:: DATE` directo porque rompe índices. Usa `LIKE`.
+            - NO uses ':: DATE' directo porque rompe índices. Usa 'LIKE'.
             - Ejemplo CORRECTO: "WHERE fechareceta LIKE '2025-10-27%'"
 
             - Ejemplo CORRECTO: "WHERE fechareceta >= '2025-10-01' AND fechareceta < '2025-11-01'" (Para rango)
