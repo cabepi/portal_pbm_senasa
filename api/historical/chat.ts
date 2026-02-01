@@ -94,62 +94,63 @@ export default async function handler(request: VercelRequest, response: VercelRe
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-        const systemInstruction = `
-            Eres un experto analista de datos SQL (PostgreSQL).
-            Tu trabajo es CONVERTIR preguntas de lenguaje natural a consultas SQL para la tabla 'dhm'.
-            
-            ESQUEMA DE BASE DE DATOS:
-            ${TABLE_SCHEMA}
-
-            REGLAS CRÍTICAS DE SEGURIDAD Y TIPOS:
-            1. **CASTING OBLIGATORIO**: Las columnas 'precio', 'copago', 'totalcobertura', 'cantidad' son VARCHAR. Para SUM, AVG, o comparaciones numéricas, DEBES escribirlas como "columna::NUMERIC".
-               - MAL: "SUM(totalcobertura)"
-               - BIEN: "SUM(totalcobertura::NUMERIC)"
-            
-            2. Solo puedes generar sentencias SELECT.
-            3. NUNCA generes INSERT, UPDATE, DELETE, DROP, ALTER, o TRUNCATE.
-            4. SIEMPRE limita los resultados a máximo 20 filas (LIMIT 20) a menos que sea una agregación.
-            5. Para búsquedas de texto, usa ILIKE y comodines %.
-
-            EJEMPLOS FEW-SHOT (Sigue estos patrones):
-            - Usuario: "Total autorizado este mes"
-              SQL: SELECT SUM(totalcobertura::NUMERIC) FROM dhm WHERE fechareceta LIKE '2025-02%'
-
-            - Usuario: "Farmacia con mayor ventas"
-              SQL: SELECT nombrefarmacia, SUM(totalcobertura::NUMERIC) as total FROM dhm GROUP BY nombrefarmacia ORDER BY total DESC LIMIT 1
-
-            - Usuario: "Precio promedio de Acetaminofen"
-              SQL: SELECT AVG(precio::NUMERIC) FROM dhm WHERE descripcion ILIKE '%Acetaminofen%'
-
-            - Usuario: "Recetas con copago mayor a 1000"
-              SQL: SELECT * FROM dhm WHERE copago::NUMERIC > 1000 LIMIT 20
-
-            IMPORTANTE SOBRE FECHAS:
-            - Las columnas 'fechareceta' y 'fechadesolicitud' son VARCHAR (no DATE).
-            - NO uses ':: DATE' directo porque rompe índices. Usa 'LIKE'.
-            - Ejemplo CORRECTO: "WHERE fechareceta LIKE '2025-10-27%'"
-
-            - Ejemplo CORRECTO: "WHERE fechareceta >= '2025-10-01' AND fechareceta < '2025-11-01'" (Para rango)
-            - Ejemplo CORRECTO: "WHERE fechareceta LIKE CURRENT_DATE::TEXT || '%'" (Para hoy)
-
-            IMPORTANTE SOBRE CAMPOS NUMÉRICOS (VARCHAR):
-            - Las columnas 'precio', 'cantidad', 'copago', 'totalcobertura', 'coberturaplan...' son VARCHAR.
-            - Para operaciones matemáticas (SUM, AVG, >, <) DEBES castearlos a NUMERIC.
-            - Ejemplo CORRECTO: "SELECT SUM(totalcobertura::NUMERIC) FROM dhm"
-            - Ejemplo CORRECTO: "WHERE precio::NUMERIC > 1000"
-            - Ejemplo CORRECTO: "ORDER BY cantidad::NUMERIC DESC"
-
-            FORMATO DE RESPUESTA JSON:
-            Debes responder ÉNICAMENTE con un objeto JSON (sin markdown code blocks):
-            {
-                "sql": "SELECT ...",
-                "explanation": "Breve explicación de qué hace la consulta"
-            }
-        `;
+        const systemInstruction =
+            "Eres un experto analista de datos SQL (PostgreSQL).\n" +
+            "Tu trabajo es CONVERTIR preguntas de lenguaje natural a consultas SQL para la tabla 'dhm'.\n\n" +
+            "ESQUEMA DE BASE DE DATOS:\n" +
+            TABLE_SCHEMA + "\n\n" +
+            "REGLAS CRÍTICAS DE SEGURIDAD Y TIPOS:\n" +
+            "1. **CASTING OBLIGATORIO**: Las columnas 'precio', 'copago', 'totalcobertura', 'cantidad' son VARCHAR. Para SUM, AVG, o comparaciones numéricas, DEBES escribirlas como \"columna::NUMERIC\".\n" +
+            "   - MAL: \"SUM(totalcobertura)\"\n" +
+            "   - BIEN: \"SUM(totalcobertura::NUMERIC)\"\n\n" +
+            "2. Solo puedes generar sentencias SELECT.\n" +
+            "3. NUNCA generes INSERT, UPDATE, DELETE, DROP, ALTER, o TRUNCATE.\n" +
+            "4. SIEMPRE limita los resultados a máximo 20 filas (LIMIT 20) a menos que sea una agregación.\n" +
+            "5. Para búsquedas de texto, usa ILIKE y comodines %.\n\n" +
+            "EJEMPLOS FEW-SHOT (Sigue estos patrones):\n" +
+            "- Usuario: \"Total autorizado este mes\"\n" +
+            "  SQL: SELECT SUM(totalcobertura::NUMERIC) FROM dhm WHERE fechareceta LIKE '2025-02%'\n\n" +
+            "- Usuario: \"Farmacia con mayor ventas\"\n" +
+            "  SQL: SELECT nombrefarmacia, SUM(totalcobertura::NUMERIC) as total FROM dhm GROUP BY nombrefarmacia ORDER BY total DESC LIMIT 1\n\n" +
+            "- Usuario: \"Precio promedio de Acetaminofen\"\n" +
+            "  SQL: SELECT AVG(precio::NUMERIC) FROM dhm WHERE descripcion ILIKE '%Acetaminofen%'\n\n" +
+            "- Usuario: \"Recetas con copago mayor a 1000\"\n" +
+            "  SQL: SELECT * FROM dhm WHERE copago::NUMERIC > 1000 LIMIT 20\n\n" +
+            "IMPORTANTE SOBRE FECHAS:\n" +
+            "- Las columnas 'fechareceta' y 'fechadesolicitud' son VARCHAR (no DATE).\n" +
+            "- NO uses ':: DATE' directo porque rompe índices. Usa 'LIKE'.\n" +
+            "- Ejemplo CORRECTO: \"WHERE fechareceta LIKE '2025-10-27%'\"\n\n" +
+            "- Ejemplo CORRECTO: \"WHERE fechareceta >= '2025-10-01' AND fechareceta < '2025-11-01'\" (Para rango)\n" +
+            "- Ejemplo CORRECTO: \"WHERE fechareceta LIKE CURRENT_DATE::TEXT || '%'\" (Para hoy)\n\n" +
+            "IMPORTANTE SOBRE CAMPOS NUMÉRICOS (VARCHAR):\n" +
+            "- Las columnas 'precio', 'cantidad', 'copago', 'totalcobertura', 'coberturaplan...' son VARCHAR.\n" +
+            "- Para operaciones matemáticas (SUM, AVG, >, <) DEBES castearlos a NUMERIC.\n" +
+            "- Ejemplo CORRECTO: \"SELECT SUM(totalcobertura::NUMERIC) FROM dhm\"\n" +
+            "- Ejemplo CORRECTO: \"WHERE precio::NUMERIC > 1000\"\n" +
+            "- Ejemplo CORRECTO: \"ORDER BY cantidad::NUMERIC DESC\"\n\n" +
+            "FORMATO DE RESPUESTA JSON:\n" +
+            "Debes responder ÚNICAMENTE con un objeto JSON (sin markdown code blocks):\n" +
+            "{\n" +
+            "    \"sql\": \"SELECT ...\",\n" +
+            "    \"explanation\": \"Breve explicación de qué hace la consulta\"\n" +
+            "}";
 
         // --- HISTORY PROCESSING ---
         // Convert Frontend messages to Gemini History
-        const history = (previousMessages || []).map((msg: any) => {
+        // RULE: Semantic history MUST start with 'user'.
+        // logic: Find the first 'user' message and slice from there.
+        let validMessages = previousMessages || [];
+        const firstUserIndex = validMessages.findIndex((m: any) => m.role === 'user');
+
+        if (firstUserIndex === -1) {
+            // No user messages found in history? Then history is effectively empty/unusable for context.
+            validMessages = [];
+        } else {
+            // Keep everything from the first user message onwards
+            validMessages = validMessages.slice(firstUserIndex);
+        }
+
+        const history = validMessages.map((msg: any) => {
             if (msg.role === 'user') {
                 return { role: 'user', parts: [{ text: msg.text }] };
             } else {
@@ -203,8 +204,20 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (!sqlClean.startsWith("SELECT")) {
             return response.status(400).json({ error: "Consulta no permitida (Solo SELECT)." });
         }
-        if (sqlClean.includes("DROP ") || sqlClean.includes("DELETE ") || sqlClean.includes("UPDATE ") || sqlClean.includes("INSERT ") || sqlClean.includes("ALTER ") || sqlClean.includes("TRUNCATE ")) {
-            return response.status(400).json({ error: "Consulta detectada como insegura." });
+
+        // 1. Block DML/DDL with Regex (Word Boundaries)
+        const forbiddenPattern = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|CREATE|REPLACE|v\$|pg_shadow|pg_user)\b/i;
+        if (forbiddenPattern.test(sqlClean)) {
+            console.error("Security Alert: Forbidden keyword detected.", sqlClean);
+            return response.status(400).json({ error: "Consulta rechazada por políticas de seguridad." });
+        }
+
+        // 2. Enforce Table Scope (MUST query 'dhm')
+        // Regex matches: FROM dhm, FROM "dhm", FROM public.dhm, JOIN dhm...
+        const tableScopePattern = /\b(FROM|JOIN)\s+("?public"?\.)?"?dhm"?\b/i;
+        if (!tableScopePattern.test(sqlClean)) {
+            console.error("Security Alert: Query targeting unknown table.", sqlClean);
+            return response.status(400).json({ error: "Solo permitidas consultas a la tabla 'dhm'." });
         }
 
         // --- MIDDLEWARE DE CORRECCIÓN DE TIPOS (Hard Fix) ---
