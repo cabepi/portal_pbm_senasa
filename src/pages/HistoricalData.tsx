@@ -168,7 +168,21 @@ const HistoricalData: React.FC = () => {
             }]);
         } catch (error: any) {
             console.error("Chat Error:", error);
-            const errMsg = error.response?.data?.error || 'Lo siento, tuve un error al consultar los datos.';
+
+            // Extract meaningful message
+            let errMsg = 'Lo siento, tuve un error al consultar los datos.';
+            if (error.response && error.response.data) {
+                const data = error.response.data;
+                // If it's the 500 Misconfiguration error we added
+                if (data.details) {
+                    errMsg = `${data.error}: ${data.details}`;
+                } else if (data.error) {
+                    errMsg = typeof data.error === 'object' ? JSON.stringify(data.error) : data.error;
+                }
+            } else if (error.message) {
+                errMsg = error.message;
+            }
+
             setMessages(prev => [...prev, { role: 'model', text: `⚠️ Error: ${errMsg}` }]);
         } finally {
             setChatLoading(false);

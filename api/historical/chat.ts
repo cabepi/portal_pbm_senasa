@@ -91,6 +91,19 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     const { message, previousMessages } = request.body;
 
+    // --- DIAGNÓSTICO DE PRODUCCIÓN ---
+    const missingVars = [];
+    if (!process.env.GOOGLE_API_KEY) missingVars.push('GOOGLE_API_KEY');
+    if (!process.env.SECONDARY_POSTGRES_URL && !process.env.KONTROLA_DB_HOST) missingVars.push('DB_CONNECTION (Secondary URL or Host)');
+
+    if (missingVars.length > 0) {
+        console.error("Critical: Missing Environment Variables:", missingVars);
+        return response.status(500).json({
+            error: "Server Misconfiguration: Missing Credentials",
+            details: `Faltan las variables de entorno: ${missingVars.join(', ')}. Verifica la configuración del proyecto en Vercel.`
+        });
+    }
+
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
