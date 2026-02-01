@@ -173,10 +173,7 @@ const HistoricalData: React.FC = () => {
             let errMsg = 'Lo siento, tuve un error al consultar los datos.';
             if (error.response && error.response.data) {
                 const data = error.response.data;
-                // If it's the 500 Misconfiguration error we added
-                if (data.details) {
-                    errMsg = `${data.error}: ${data.details}`;
-                } else if (data.error) {
+                if (data.error) {
                     errMsg = typeof data.error === 'object' ? JSON.stringify(data.error) : data.error;
                 }
             } else if (error.message) {
