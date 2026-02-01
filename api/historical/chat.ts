@@ -29,21 +29,47 @@ const secondaryDb = {
 
 const TABLE_SCHEMA = `
 Table "dhm" (Data Histórica de Medicamentos):
-- codautorizacion (varchar): Código único de la autorización
-- codigofarmacia (varchar): Código de la farmacia
-- nombrefarmacia (varchar): Nombre de la farmacia
-- numeroafiliado (varchar): Número de afiliado
-- nombreafiliado (varchar): Nombre del paciente/afiliado
-- cedula (varchar): Cédula del afiliado
-- doctor (varchar): Nombre del doctor
-- descripcion (varchar): Nombre del medicamento o producto
-- cantidad (varchar): Cantidad solicitada
-- precio (varchar): Precio unitario
-- totalcobertura (varchar): Monto cubierto por la ARS
-- fechareceta (varchar): Fecha de la receta
-- fechadesolicitud (varchar): Fecha de la autorización
-- copago (varchar): Monto que paga el afiliado
-- reversado (varchar): 'S' si fue anulada/reversada, 'N' o null si está activa
+- codautorizacion (varchar)
+- codigofarmacia (varchar)
+- nombrefarmacia (varchar)
+- tipofarmacia (varchar)
+- numeroafiliado (varchar)
+- nombreafiliado (varchar)
+- fechanacimiento (varchar)
+- edad (varchar)
+- sexo (varchar)
+- cedula (varchar)
+- telefono (varchar)
+- doctor (varchar)
+- centro (varchar)
+- simon (varchar): Código Simón
+- descripcion (varchar): Medicamento
+- cantidad (varchar): (IMPORTANTE: CAST TO NUMERIC)
+- dias (varchar)
+- precio (varchar): (IMPORTANTE: CAST TO NUMERIC)
+- facturado (varchar): (IMPORTANTE: CAST TO NUMERIC)
+- copago (varchar): (IMPORTANTE: CAST TO NUMERIC)
+- totalcobertura (varchar): (IMPORTANTE: CAST TO NUMERIC)
+- coberturaplancomplementario (varchar)
+- coberturaplanvolunatario (varchar)
+- coberturaplanpbs (varchar)
+- coberturapyp (varchar)
+- fechareceta (varchar)
+- tiporeceta (varchar)
+- fechadesolicitud (varchar)
+- horasolicitud (varchar)
+- fechadeprocesamiento (varchar)
+- cedulasolicitante (varchar)
+- pasaporte (varchar)
+- licenciadeconducir (varchar)
+- permisodetrabajo (varchar)
+- fechareverso (varchar)
+- motivodereverso (varchar)
+- reversado (varchar): 'S' anula, 'N' activa
+- usuariogenerador (varchar)
+- numerorecetapyp (varchar)
+- usuariopyp (varchar)
+- esprogramapyp (varchar)
 `;
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
@@ -75,20 +101,43 @@ export default async function handler(request: VercelRequest, response: VercelRe
             ESQUEMA DE BASE DE DATOS:
             ${TABLE_SCHEMA}
 
-            REGLAS CRÍTICAS DE SEGURIDAD:
-            1. Solo puedes generar sentencias SELECT.
-            2. NUNCA generes INSERT, UPDATE, DELETE, DROP, ALTER, o TRUNCATE.
-            3. SIEMPRE limita los resultados a máximo 20 filas (LIMIT 20) a menos que sea una agregación (COUNT, SUM).
-            4. Si la pregunta es ambigua, genera la consulta más lógica basada en nombres o fechas recientes.
+            REGLAS CRÍTICAS DE SEGURIDAD Y TIPOS:
+            1. **CASTING OBLIGATORIO**: Las columnas 'precio', 'copago', 'totalcobertura', 'cantidad' son VARCHAR. Para SUM, AVG, o comparaciones numéricas, DEBES escribirlas como "columna::NUMERIC".
+               - MAL: "SUM(totalcobertura)"
+               - BIEN: "SUM(totalcobertura::NUMERIC)"
+            
+            2. Solo puedes generar sentencias SELECT.
+            3. NUNCA generes INSERT, UPDATE, DELETE, DROP, ALTER, o TRUNCATE.
+            4. SIEMPRE limita los resultados a máximo 20 filas (LIMIT 20) a menos que sea una agregación.
             5. Para búsquedas de texto, usa ILIKE y comodines %.
 
+            EJEMPLOS FEW-SHOT (Sigue estos patrones):
+            - Usuario: "Total autorizado este mes"
+              SQL: SELECT SUM(totalcobertura::NUMERIC) FROM dhm WHERE fechareceta LIKE '2025-02%'
+
+            - Usuario: "Farmacia con mayor ventas"
+              SQL: SELECT nombrefarmacia, SUM(totalcobertura::NUMERIC) as total FROM dhm GROUP BY nombrefarmacia ORDER BY total DESC LIMIT 1
+
+            - Usuario: "Precio promedio de Acetaminofen"
+              SQL: SELECT AVG(precio::NUMERIC) FROM dhm WHERE descripcion ILIKE '%Acetaminofen%'
+
+            - Usuario: "Recetas con copago mayor a 1000"
+              SQL: SELECT * FROM dhm WHERE copago::NUMERIC > 1000 LIMIT 20
+
             IMPORTANTE SOBRE FECHAS:
-            - Las columnas 'fechareceta' y 'fechadesolicitud' son VARCHAR (formato 'YYYY-MM-DD HH:MM:SS').
-            - Para optimizar (usar índices), NO uses casting (::DATE).
-            - Usa búsqueda de texto con LIKE 'YYYY-MM-DD%'.
-            - Ejemplo CORRECTO: "WHERE fechareceta LIKE '2025-10-27%'" (Para buscar un día)
+            - Las columnas 'fechareceta' y 'fechadesolicitud' son VARCHAR (no DATE).
+            - NO uses `:: DATE` directo porque rompe índices. Usa `LIKE`.
+            - Ejemplo CORRECTO: "WHERE fechareceta LIKE '2025-10-27%'"
+
             - Ejemplo CORRECTO: "WHERE fechareceta >= '2025-10-01' AND fechareceta < '2025-11-01'" (Para rango)
             - Ejemplo CORRECTO: "WHERE fechareceta LIKE CURRENT_DATE::TEXT || '%'" (Para hoy)
+
+            IMPORTANTE SOBRE CAMPOS NUMÉRICOS (VARCHAR):
+            - Las columnas 'precio', 'cantidad', 'copago', 'totalcobertura', 'coberturaplan...' son VARCHAR.
+            - Para operaciones matemáticas (SUM, AVG, >, <) DEBES castearlos a NUMERIC.
+            - Ejemplo CORRECTO: "SELECT SUM(totalcobertura::NUMERIC) FROM dhm"
+            - Ejemplo CORRECTO: "WHERE precio::NUMERIC > 1000"
+            - Ejemplo CORRECTO: "ORDER BY cantidad::NUMERIC DESC"
 
             FORMATO DE RESPUESTA JSON:
             Debes responder ÉNICAMENTE con un objeto JSON (sin markdown code blocks):
@@ -98,8 +147,25 @@ export default async function handler(request: VercelRequest, response: VercelRe
             }
         `;
 
+        // --- HISTORY PROCESSING ---
+        // Convert Frontend messages to Gemini History
+        const history = (previousMessages || []).map((msg: any) => {
+            if (msg.role === 'user') {
+                return { role: 'user', parts: [{ text: msg.text }] };
+            } else {
+                // Model: Must STRICTLY return JSON to keep the AI on track
+                // If it was a SQL response, reconstruct the JSON
+                const responseObj = msg.sql
+                    ? { sql: msg.sql, explanation: msg.explanation || "Query generated" }
+                    : { sql: null, explanation: msg.text };
+
+                return { role: 'model', parts: [{ text: JSON.stringify(responseObj) }] };
+            }
+        });
+
+        // Initialize chat with history or default welcome
         const chat = model.startChat({
-            history: [
+            history: history.length > 0 ? history : [
                 { role: 'user', parts: [{ text: "Hola" }] },
                 { role: 'model', parts: [{ text: JSON.stringify({ sql: null, explanation: "Hola, estoy listo para consultar la base de datos." }) }] }
             ],
@@ -141,7 +207,30 @@ export default async function handler(request: VercelRequest, response: VercelRe
             return response.status(400).json({ error: "Consulta detectada como insegura." });
         }
 
-        const dbResult = await secondaryDb.query(sqlRaw);
+        // --- MIDDLEWARE DE CORRECCIÓN DE TIPOS (Hard Fix) ---
+        // Si el modelo olvidó el casting, lo forzamos con Regex para columnas conocidas.
+        let finalSql = sqlClean;
+        const numericColumns = ['totalcobertura', 'precio', 'copago', 'cantidad', 'facturado'];
+
+        numericColumns.forEach(col => {
+            // Reemplaza SUM(totalcobertura) por SUM(totalcobertura::NUMERIC)
+            // Reemplaza AVG(precio) por AVG(precio::NUMERIC)
+            const regex = new RegExp(`(SUM|AVG|MIN|MAX)\\(\\s*${col}\\s*\\)`, 'gi');
+            finalSql = finalSql.replace(regex, `$1(${col}::NUMERIC)`);
+
+            // Reemplaza comparaciones simples: totalcobertura > 100 
+            // Cuidado: esto es más riesgoso con regex simple, nos enfocamos en agregaciones que son el error común.
+        });
+
+        // Corrección específica para el error reportado "function sum(character varying) does not exist"
+        // Si queda algún SUM(varchar) suelto que no sea de las columnas de arriba pero falle.
+        // (Opcional, pero las columnas de arriba cubren el 99% de casos)
+        // --------------------------------------------------------
+
+        console.log("SQL Original:", sqlClean);
+        console.log("SQL Corregido:", finalSql);
+
+        const dbResult = await secondaryDb.query(finalSql);
 
         const summaryModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         const summaryPrompt = `

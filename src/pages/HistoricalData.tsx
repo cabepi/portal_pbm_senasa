@@ -63,31 +63,54 @@ const HistoricalData: React.FC = () => {
     const [sort, setSort] = useState({ field: 'fechareceta', order: 'DESC' });
     const [selectedRow, setSelectedRow] = useState<HistoryRow | null>(null);
 
-    // --- Chat State ---
+    // --- Chat State (Session Storage Persistence) ---
     const [chatInput, setChatInput] = useState('');
-    const [messages, setMessages] = useState<any[]>([
-        { role: 'model', text: 'Hola 👋 Soy tu Analista Inteligente. Puedo consultar los 4 millones de registros por ti. ¿Qué necesitas saber?' }
-    ]);
+    const [messages, setMessages] = useState<any[]>(() => {
+        // Load from Session Storage if available
+        const saved = sessionStorage.getItem('chat_history');
+        if (saved) return JSON.parse(saved);
+        return [{ role: 'model', text: 'Hola 👋 Soy tu Analista Inteligente. Puedo consultar los 4 millones de registros por ti. ¿Qué necesitas saber?' }];
+    });
     const [chatLoading, setChatLoading] = useState(false);
     const [showChat, setShowChat] = useState(true);
+
+    // Save to Session Storage whenever messages change
+    useEffect(() => {
+        sessionStorage.setItem('chat_history', JSON.stringify(messages));
+    }, [messages]);
 
     // --- Grid Logic ---
     const fetchData = async () => {
         setLoading(true);
         try {
+            // Optimization for High Volume: Don't fetch data to render, just get metadata (count)
+            // We use limit=1 to be fast, but we "pretend" the limit is the high one in the UI state
+            const effectiveLimit = pagination.limit >= 100000 ? 1 : pagination.limit;
+
             const res = await axios.get('/api/historical/query', {
                 params: {
                     page: pagination.page,
-                    limit: pagination.limit,
+                    limit: effectiveLimit,
                     search,
                     sortField: sort.field,
                     sortOrder: sort.order
                 }
             });
-            setData(res.data.data);
-            setPagination(res.data.pagination);
 
-            // Update welcome message with real count if it's the first load
+            if (pagination.limit >= 100000) {
+                setData([]); // Clear data to prevent rendering
+            } else {
+                setData(res.data.data);
+            }
+
+            // Keep the selected limit in pagination state, but update total/pages from response
+            setPagination(prev => ({
+                ...prev,
+                total: res.data.pagination.total,
+                totalPages: Math.ceil(res.data.pagination.total / prev.limit) // Recalculate based on requested limit
+            }));
+
+            // Update welcome message with real count on first load
             if (messages.length === 1 && messages[0].text.includes('Soy tu Analista')) {
                 const realCount = res.data.pagination.total.toLocaleString();
                 setMessages([
@@ -129,7 +152,12 @@ const HistoricalData: React.FC = () => {
 
         try {
             console.log("Sending POST to /api/historical/chat...");
-            const res = await axios.post('/api/historical/chat', { message: userMsg });
+            // Send history excluding the temporary user message we just added (it's in 'message')
+            const previousMessages = messages;
+            const res = await axios.post('/api/historical/chat', {
+                message: userMsg,
+                previousMessages
+            });
             console.log("Response received:", res.data);
 
             setMessages(prev => [...prev, {
@@ -147,22 +175,49 @@ const HistoricalData: React.FC = () => {
         }
     }
 
-    const handleExportCSV = () => {
-        if (!data || data.length === 0) return;
+    const [exporting, setExporting] = useState(false);
 
-        // 1. Define Headers (Use visible columns + visible detail fields for completeness)
-        // Or simply strict dumb dump of everything? User said "data shown in data grid".
-        // Let's dump the raw data object keys since it contains everything relevant.
-        // We will format headers nicely though.
-        const headers = Object.keys(data[0]);
+    const handleExportCSV = async () => {
+        let exportData = data;
+
+        // On-demand fetch for High Volume
+        if (pagination.limit >= 100000) {
+            const confirmExport = window.confirm(`Vas a descargar ${pagination.limit.toLocaleString()} registros. Esto puede tardar varios minutos y consumir mucha memoria. ¿Deseas continuar?`);
+            if (!confirmExport) return;
+
+            setExporting(true);
+            try {
+                const res = await axios.get('/api/historical/query', {
+                    params: {
+                        page: pagination.page,
+                        limit: pagination.limit, // The REAL large limit
+                        search,
+                        sortField: sort.field,
+                        sortOrder: sort.order
+                    }
+                });
+                exportData = res.data.data;
+            } catch (error) {
+                console.error("Export Fetch Error", error);
+                alert("Error al descargar los datos masivos.");
+                setExporting(false);
+                return;
+            } finally {
+                setExporting(false);
+            }
+        }
+
+        if (!exportData || exportData.length === 0) return;
+
+        // 1. Define Headers
+        const headers = Object.keys(exportData[0]);
 
         // 2. Map Data to CSV Rows
         const csvRows = [
-            headers.join(';'), // Header Row
-            ...data.map(row => {
+            headers.join(';'),
+            ...exportData.map(row => {
                 return headers.map(header => {
                     const val = row[header as keyof HistoryRow] || '';
-                    // Escape quotes and handle semicolons in content
                     const escaped = String(val).replace(/"/g, '""');
                     return `"${escaped}"`;
                 }).join(';');
@@ -175,7 +230,7 @@ const HistoricalData: React.FC = () => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `data_historica_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute('download', `data_historica_${new Date().toISOString().split('T')[0]}_limit${pagination.limit}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -209,10 +264,11 @@ const HistoricalData: React.FC = () => {
                     <button
                         className="btn-export"
                         onClick={handleExportCSV}
+                        disabled={exporting}
                         title="Descargar datos visibles"
                     >
-                        <Download size={18} />
-                        Exportar CSV
+                        {exporting ? <div className="spinner-small" style={{ width: 16, height: 16, border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div> : <Download size={18} />}
+                        {exporting ? 'Descargando...' : 'Exportar CSV'}
                     </button>
                 </header>
 
@@ -240,6 +296,7 @@ const HistoricalData: React.FC = () => {
                                 <th onClick={() => handleSort('fechareceta')}>Fecha {sort.field === 'fechareceta' && (sort.order === 'ASC' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}</th>
                                 <th>Farmacia</th>
                                 <th>Afiliado</th>
+                                <th onClick={() => handleSort('simon')}>Cód. Simón {sort.field === 'simon' && (sort.order === 'ASC' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}</th>
                                 <th>Descripción</th>
                                 <th>Monto</th>
                                 <th>Estado</th>
@@ -265,6 +322,9 @@ const HistoricalData: React.FC = () => {
                                         <div className="cell-title">{row.nombreafiliado}</div>
                                         <div className="cell-sub">{row.cedula}</div>
                                     </td>
+                                    <td className="font-mono" style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                                        {row.simon}
+                                    </td>
                                     <td>
                                         <div className="cell-title">{row.descripcion}</div>
                                         <div className="cell-sub">Cant: {row.cantidad}</div>
@@ -279,6 +339,27 @@ const HistoricalData: React.FC = () => {
                             ))}
                         </tbody>
                     </table>
+
+                    {pagination.limit >= 100000 && (
+                        <div style={{
+                            padding: '4rem 2rem',
+                            textAlign: 'center',
+                            background: '#f8fafc',
+                            borderRadius: '8px',
+                            marginTop: '1rem',
+                            border: '1px dashed #cbd5e1'
+                        }}>
+                            <Database size={48} style={{ color: '#94a3b8', marginBottom: '1rem' }} />
+                            <h3 style={{ color: '#1e293b', marginBottom: '0.5rem' }}>Vista Masiva Detectada ({pagination.limit.toLocaleString()} filas)</h3>
+                            <p style={{ color: '#64748b', maxWidth: '600px', margin: '0 auto' }}>
+                                Para garantizar el rendimiento del navegador, los datos masivos no se muestran en la tabla en pantalla.
+                            </p>
+                            <p style={{ color: '#64748b', maxWidth: '600px', margin: '1rem auto 0', fontWeight: 500 }}>
+                                ℹ️ Puedes visualizar esta información descargando el reporte CSV.<br />
+                                El proceso de descarga puede tardar varios minutos.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="pagination-controls">
@@ -293,6 +374,11 @@ const HistoricalData: React.FC = () => {
                             <option value={100}>100 por pág.</option>
                             <option value={500}>500 por pág.</option>
                             <option value={1000}>1,000 por pág.</option>
+                            <option value={10000}>10,000 por pág.</option>
+                            <option value={50000}>50,000 por pág.</option>
+                            <option value={100000}>100,000 por pág.</option>
+                            <option value={500000}>500,000 por pág.</option>
+                            <option value={1000000}>1,000,000 por pág.</option>
                         </select>
                     </div>
 
@@ -439,6 +525,10 @@ const HistoricalData: React.FC = () => {
                                         <span>{selectedRow.descripcion}</span>
                                     </div>
                                     <div className="field">
+                                        <label>Cód. Simón</label>
+                                        <span className="font-mono">{selectedRow.simon}</span>
+                                    </div>
+                                    <div className="field">
                                         <label>Cantidad</label>
                                         <span>{selectedRow.cantidad}</span>
                                     </div>
@@ -446,11 +536,45 @@ const HistoricalData: React.FC = () => {
                                         <label>Días Tx</label>
                                         <span>{selectedRow.dias}</span>
                                     </div>
+                                    <div className="field">
+                                        <label>Fecha Receta</label>
+                                        <span>{selectedRow.fechareceta}</span>
+                                    </div>
+                                    <div className="field">
+                                        <label>Tipo Receta</label>
+                                        <span>{selectedRow.tiporeceta}</span>
+                                    </div>
                                 </div>
                             </div>
 
                             <div className="detail-section">
-                                <h3>Desglose Financiero</h3>
+                                <h3>Información Adicional del Afiliado / Solicitante</h3>
+                                <div className="detail-grid">
+                                    <div className="field">
+                                        <label>Teléfono</label>
+                                        <span>{selectedRow.telefono}</span>
+                                    </div>
+                                    <div className="field">
+                                        <label>Cédula Solicitante</label>
+                                        <span>{selectedRow.cedulasolicitante}</span>
+                                    </div>
+                                    <div className="field">
+                                        <label>Pasaporte</label>
+                                        <span>{selectedRow.pasaporte}</span>
+                                    </div>
+                                    <div className="field">
+                                        <label>Licencia / Permiso</label>
+                                        <span>{selectedRow.licenciadeconducir} {selectedRow.permisodetrabajo}</span>
+                                    </div>
+                                    <div className="field">
+                                        <label>Fecha Procesamiento</label>
+                                        <span>{selectedRow.fechadeprocesamiento}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="detail-section">
+                                <h3>Desglose Financiero & PyP</h3>
                                 <div className="detail-grid costs">
                                     <div className="field">
                                         <label>Precio Unitario</label>
@@ -473,7 +597,16 @@ const HistoricalData: React.FC = () => {
                                     <div className="field"><label>Plan Comp.</label><span>{selectedRow.coberturaplancomplementario}</span></div>
                                     <div className="field"><label>Plan Vol.</label><span>{selectedRow.coberturaplanvolunatario}</span></div>
                                     <div className="field"><label>PBS</label><span>{selectedRow.coberturaplanpbs}</span></div>
+                                    <div className="field"><label>PyP</label><span>{selectedRow.coberturapyp}</span></div>
                                 </div>
+
+                                {selectedRow.esprogramapyp === 'S' && (
+                                    <div className="detail-grid" style={{ marginTop: '1rem', borderTop: '1px dashed #e2e8f0', paddingTop: '0.5rem' }}>
+                                        <div className="field"><label>Programa PyP</label><span>Sí</span></div>
+                                        <div className="field"><label>Receta PyP</label><span>{selectedRow.numerorecetapyp}</span></div>
+                                        <div className="field"><label>Usuario PyP</label><span>{selectedRow.usuariopyp}</span></div>
+                                    </div>
+                                )}
                             </div>
 
                             {selectedRow.reversado === 'S' && (

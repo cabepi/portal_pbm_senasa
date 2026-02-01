@@ -60,7 +60,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
                 nombreafiliado ILIKE $${paramIndex} OR 
                 cedula ILIKE $${paramIndex} OR 
                 codautorizacion ILIKE $${paramIndex} OR
-                descripcion ILIKE $${paramIndex}
+                descripcion ILIKE $${paramIndex} OR
+                simon ILIKE $${paramIndex}
             )`;
             values.push(`%${search}%`);
             paramIndex++;
