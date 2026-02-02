@@ -76,15 +76,23 @@ export default async function handler(request: VercelRequest, response: VercelRe
         const allowedSorts = ['fechareceta', 'nombrefarmacia', 'nombreafiliado', 'totalcobertura', 'codautorizacion'];
         const safeSortField = allowedSorts.includes(sortField) ? sortField : 'fechareceta';
 
+        const table = (request.query.table as string) || 'dhm';
+
+        // STRICT SECURITY CHECK: Allow only specific table names
+        const allowedTables = ['dhm', 'dhm2'];
+        if (!allowedTables.includes(table)) {
+            return response.status(400).json({ error: 'Invalid table parameter' });
+        }
+
         const query = `
             SELECT * 
-            FROM dhm 
+            FROM ${table} 
             ${whereClause} 
             ORDER BY ${safeSortField} ${sortOrder} 
             LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
 
-        const countQuery = `SELECT count(*) FROM dhm ${whereClause}`;
+        const countQuery = `SELECT count(*) FROM ${table} ${whereClause}`;
 
         const [rowsResult, countResult] = await Promise.all([
             secondaryDb.query(query, [...values, limit, offset]),

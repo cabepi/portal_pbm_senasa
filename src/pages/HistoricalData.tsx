@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Search, ChevronLeft, ChevronRight, Database, ArrowUp, ArrowDown, Sparkles, Send, Eye, X, Download } from 'lucide-react';
 import '../styles/HistoricalData.css';
@@ -55,6 +56,11 @@ const SUGGESTIONS = [
 ];
 
 const HistoricalData: React.FC = () => {
+    // --- Navigation State ---
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const dataSource = searchParams.get('source') || 'dhm';
+
     // --- Data Grid State ---
     const [data, setData] = useState<HistoryRow[]>([]);
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
@@ -66,18 +72,27 @@ const HistoricalData: React.FC = () => {
     // --- Chat State (Session Storage Persistence) ---
     const [chatInput, setChatInput] = useState('');
     const [messages, setMessages] = useState<any[]>(() => {
-        // Load from Session Storage if available
-        const saved = sessionStorage.getItem('chat_history');
+        // Load from Session Storage (Source-Scoped)
+        const storageKey = `chat_history_${dataSource}`;
+        const saved = sessionStorage.getItem(storageKey);
+
         if (saved) return JSON.parse(saved);
-        return [{ role: 'model', text: 'Hola 👋 Soy tu Analista Inteligente. Puedo consultar los 4 millones de registros por ti. ¿Qué necesitas saber?' }];
+
+        // Default Welcome Message
+        const dateLabel = dataSource === 'dhm2' ? 'Febrero 02 2026' : 'Enero 30 2026';
+        return [{
+            role: 'model',
+            text: `Hola 👋 Soy tu Analista Inteligente para ${dateLabel}. Puedo consultar los registros de esta fecha por ti. ¿Qué necesitas saber?`
+        }];
     });
     const [chatLoading, setChatLoading] = useState(false);
     const [showChat, setShowChat] = useState(true);
 
     // Save to Session Storage whenever messages change
     useEffect(() => {
-        sessionStorage.setItem('chat_history', JSON.stringify(messages));
-    }, [messages]);
+        const storageKey = `chat_history_${dataSource}`;
+        sessionStorage.setItem(storageKey, JSON.stringify(messages));
+    }, [messages, dataSource]);
 
     // --- Grid Logic ---
     const fetchData = async () => {
@@ -93,7 +108,8 @@ const HistoricalData: React.FC = () => {
                     limit: effectiveLimit,
                     search,
                     sortField: sort.field,
-                    sortOrder: sort.order
+                    sortOrder: sort.order,
+                    table: dataSource // Dynamic Table Source
                 }
             });
 
@@ -126,7 +142,7 @@ const HistoricalData: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-    }, [pagination.page, pagination.limit, sort]);
+    }, [pagination.page, pagination.limit, sort, dataSource]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -156,7 +172,8 @@ const HistoricalData: React.FC = () => {
             const previousMessages = messages;
             const res = await axios.post('/api/historical/chat', {
                 message: userMsg,
-                previousMessages
+                previousMessages,
+                table: dataSource // Dynamic Table Context for AI
             });
             console.log("Response received:", res.data);
 
@@ -258,7 +275,10 @@ const HistoricalData: React.FC = () => {
             <div className={`main-content ${showChat ? 'shrunk' : ''}`}>
                 <header className="page-header">
                     <div>
-                        <h1><Database className="icon" size={24} style={{ marginRight: '.5rem' }} /> Data Histórica</h1>
+                        <h1>
+                            <Database className="icon" size={24} style={{ marginRight: '.5rem' }} />
+                            Data Histórica: {dataSource === 'dhm2' ? 'Febrero 02 2026' : 'Enero 30 2026'}
+                        </h1>
                         <p>
                             {pagination.total > 0
                                 ? `Explora el archivo histórico (${pagination.total.toLocaleString()} registros)`

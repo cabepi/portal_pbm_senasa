@@ -34,9 +34,17 @@ export const MainLayout = () => {
                         <Link to="/consultar-solicitudes" style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Search size={18} /> Consultar Solicitudes
                         </Link>
-                        <Link to="/data-historica" style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Database size={18} /> Data Histórica
-                        </Link>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'inherit', fontWeight: 'bold' }}>
+                                <Database size={18} /> Data Histórica
+                            </div>
+                            <Link to="/data-historica?source=dhm" style={{ marginLeft: '1.5rem', fontSize: '0.85rem', color: 'inherit', textDecoration: 'none', opacity: 0.8 }}>
+                                • Enero 30 del 2026
+                            </Link>
+                            <Link to="/data-historica?source=dhm2" style={{ marginLeft: '1.5rem', fontSize: '0.85rem', color: 'inherit', textDecoration: 'none', opacity: 0.8 }}>
+                                • Febrero 02 del 2026
+                            </Link>
+                        </div>
                         <Link to="/historial" style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Activity size={18} /> Historial
                         </Link>
@@ -62,7 +70,7 @@ export const MainLayout = () => {
             </nav>
 
             <main className="container" style={{ paddingTop: '2rem' }}>
-                <Outlet />
+                <Outlet key={location.pathname + location.search} />
             </main>
 
             {/* Hide global generic chatbot on Historical Data page to avoid confusion with specialized SQL Agent */}

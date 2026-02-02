@@ -72,6 +72,28 @@ Table "dhm" (Data Histórica de Medicamentos):
 - esprogramapyp (varchar)
 `;
 
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function callWithRetry<T>(operation: () => Promise<T>, retries = 1, delay = 5000): Promise<T> {
+    try {
+        return await operation();
+    } catch (error: any) {
+        // Build a broad error string to check against
+        const errStr = (error.message || '') + (error.toString() || '');
+
+        if (retries > 0 && (
+            errStr.includes('429') ||
+            errStr.includes('Resource exhausted') ||
+            errStr.includes('Too Many Requests')
+        )) {
+            console.warn(`⚠️ AI Rate Limit (429) detected. Pausing for ${delay / 1000}s before retry...`);
+            await wait(delay);
+            return callWithRetry(operation, retries - 1, delay);
+        }
+        throw error;
+    }
+}
+
 export default async function handler(request: VercelRequest, response: VercelResponse) {
     // --- CORS Headers ---
     response.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -89,16 +111,22 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     if (request.method !== 'POST') return response.status(405).json({ error: 'Method Not Allowed' });
 
-    const { message, previousMessages } = request.body;
+    const { message, previousMessages, table = 'dhm' } = request.body;
+
+    // STRICT SECURITY CHECK
+    const allowedTables = ['dhm', 'dhm2'];
+    if (!allowedTables.includes(table)) {
+        return response.status(400).json({ error: 'Invalid table parameter' });
+    }
 
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
         const systemInstruction =
             "Eres un experto analista de datos SQL (PostgreSQL).\n" +
-            "Tu trabajo es CONVERTIR preguntas de lenguaje natural a consultas SQL para la tabla 'dhm'.\n\n" +
+            `Tu trabajo es CONVERTIR preguntas de lenguaje natural a consultas SQL para la tabla '${table}'.\n\n` +
             "ESQUEMA DE BASE DE DATOS:\n" +
-            TABLE_SCHEMA + "\n\n" +
+            TABLE_SCHEMA.replace('Table "dhm"', `Table "${table}"`) + "\n\n" +
             "REGLAS CRÍTICAS DE SEGURIDAD Y TIPOS:\n" +
             "1. **CASTING OBLIGATORIO**: Las columnas 'precio', 'copago', 'totalcobertura', 'cantidad' son VARCHAR. Para SUM, AVG, o comparaciones numéricas, DEBES escribirlas como \"columna::NUMERIC\".\n" +
             "   - MAL: \"SUM(totalcobertura)\"\n" +
@@ -109,13 +137,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
             "5. Para búsquedas de texto, usa ILIKE y comodines %.\n\n" +
             "EJEMPLOS FEW-SHOT (Sigue estos patrones):\n" +
             "- Usuario: \"Total autorizado este mes\"\n" +
-            "  SQL: SELECT SUM(totalcobertura::NUMERIC) FROM dhm WHERE fechareceta LIKE '2025-02%'\n\n" +
+            `  SQL: SELECT SUM(totalcobertura::NUMERIC) FROM ${table} WHERE fechareceta LIKE '2025-02%'\n\n` +
             "- Usuario: \"Farmacia con mayor ventas\"\n" +
-            "  SQL: SELECT nombrefarmacia, SUM(totalcobertura::NUMERIC) as total FROM dhm GROUP BY nombrefarmacia ORDER BY total DESC LIMIT 1\n\n" +
+            `  SQL: SELECT nombrefarmacia, SUM(totalcobertura::NUMERIC) as total FROM ${table} GROUP BY nombrefarmacia ORDER BY total DESC LIMIT 1\n\n` +
             "- Usuario: \"Precio promedio de Acetaminofen\"\n" +
-            "  SQL: SELECT AVG(precio::NUMERIC) FROM dhm WHERE descripcion ILIKE '%Acetaminofen%'\n\n" +
+            `  SQL: SELECT AVG(precio::NUMERIC) FROM ${table} WHERE descripcion ILIKE '%Acetaminofen%'\n\n` +
             "- Usuario: \"Recetas con copago mayor a 1000\"\n" +
-            "  SQL: SELECT * FROM dhm WHERE copago::NUMERIC > 1000 LIMIT 20\n\n" +
+            `  SQL: SELECT * FROM ${table} WHERE copago::NUMERIC > 1000 LIMIT 20\n\n` +
             "IMPORTANTE SOBRE FECHAS:\n" +
             "- Las columnas 'fechareceta' y 'fechadesolicitud' son VARCHAR (no DATE).\n" +
             "- NO uses ':: DATE' directo porque rompe índices. Usa 'LIKE'.\n" +
@@ -125,7 +153,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
             "IMPORTANTE SOBRE CAMPOS NUMÉRICOS (VARCHAR):\n" +
             "- Las columnas 'precio', 'cantidad', 'copago', 'totalcobertura', 'coberturaplan...' son VARCHAR.\n" +
             "- Para operaciones matemáticas (SUM, AVG, >, <) DEBES castearlos a NUMERIC.\n" +
-            "- Ejemplo CORRECTO: \"SELECT SUM(totalcobertura::NUMERIC) FROM dhm\"\n" +
+            `  - Ejemplo CORRECTO: \"SELECT SUM(totalcobertura::NUMERIC) FROM ${table}\"\n` +
             "- Ejemplo CORRECTO: \"WHERE precio::NUMERIC > 1000\"\n" +
             "- Ejemplo CORRECTO: \"ORDER BY cantidad::NUMERIC DESC\"\n\n" +
             "FORMATO DE RESPUESTA JSON:\n" +
@@ -173,7 +201,11 @@ export default async function handler(request: VercelRequest, response: VercelRe
             generationConfig: { responseMimeType: "application/json" }
         });
 
-        const result = await chat.sendMessage(`Genera SQL para: "${message}" \n ${systemInstruction}`);
+        // --- SQL GENERATION WITH RETRY ---
+        const result = await callWithRetry(() =>
+            chat.sendMessage(`Genera SQL para: "${message}" \n ${systemInstruction}`)
+        );
+
         const responseText = result.response.text();
         console.log("Gemini SQL Response:", responseText);
 
@@ -212,12 +244,15 @@ export default async function handler(request: VercelRequest, response: VercelRe
             return response.status(400).json({ error: "Consulta rechazada por políticas de seguridad." });
         }
 
-        // 2. Enforce Table Scope (MUST query 'dhm')
+        // 2. Enforce Table Scope (MUST query 'dhm' or 'dhm2')
         // Regex matches: FROM dhm, FROM "dhm", FROM public.dhm, JOIN dhm...
-        const tableScopePattern = /\b(FROM|JOIN)\s+("?public"?\.)?"?dhm"?\b/i;
+        // We dynamically build regex to match ONLY the selected table.
+        const tableNameRegex = table;
+        const tableScopePattern = new RegExp(`\\b(FROM|JOIN)\\s+("?public"?\\.)?"?${tableNameRegex}"?\\b`, 'i');
+
         if (!tableScopePattern.test(sqlClean)) {
             console.error("Security Alert: Query targeting unknown table.", sqlClean);
-            return response.status(400).json({ error: "Solo permitidas consultas a la tabla 'dhm'." });
+            return response.status(400).json({ error: `Solo permitidas consultas a la tabla '${table}'.` });
         }
 
         // --- MIDDLEWARE DE CORRECCIÓN DE TIPOS (Hard Fix) ---
@@ -261,7 +296,11 @@ export default async function handler(request: VercelRequest, response: VercelRe
                - Correcto: $2,305,634,216.06
         `;
 
-        const summaryResult = await summaryModel.generateContent(summaryPrompt);
+        // --- SUMMARY GENERATION WITH RETRY ---
+        const summaryResult = await callWithRetry(() =>
+            summaryModel.generateContent(summaryPrompt)
+        );
+
         const finalAnswer = summaryResult.response.text();
 
         return response.status(200).json({
